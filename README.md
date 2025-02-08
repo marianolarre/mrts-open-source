@@ -21,3 +21,8 @@ These are the things I'd like the addon to have before getting a full release
 - Contraptions: the player is able to, in their own time and out of battle, build machines using props and special parts to create vehicles. These vehicles can then be spawned during a match using a special building. The contraption costs time and money to spawn, and its destroyable, either part by part or all at once.
 - Balance: the balance of the game is in a state where its fun and not frustrating to play, and matches aren't prolonged for more than one or two minutes once a victory or defeat is inevitable.
 - Minimal micromanagement: the effectiveness of micromanagement is as low as possible. A player that uses good team composition and tactics should be able to win without an inmense amount of physical skill and speed.
+
+## Contacts
+
+You can find the MRTS discord server here: https://discord.gg/F3TDJtxDbN
+And my discord username is 'marum'
