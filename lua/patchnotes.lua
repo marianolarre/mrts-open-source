@@ -9,4 +9,4 @@ fixed building overlap detection
 ////////////////////////////// 26-12-2024
 Added a hint when trying to build somewhere you can't build
 Made it so that you can't build on objects with the Super Ice physics material (wasn't working before)
-# Para mi: Trabajando en el contraption assembler. Ya pude hacer un edificio que spawnee contraptions, pero los contraptions son re toscos todavia
+Working on contraption assembler. The building can spawn contraptions, but contraptions themselves are pretty jank still
