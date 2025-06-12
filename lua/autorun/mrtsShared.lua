@@ -20,6 +20,11 @@ MRTSEventClass.number = 0;
 MRTSEventClass.resource = "";
 MRTSEventClass.counter = 0;
 
+MRTSContraptionClass = {};
+MRTSContraptionClass.parts = {};
+MRTSContraptionClass.props = {};
+MRTSContraptionClass.team = 0;
+
 mrtsMapController = nil
 
 mrtsGridSize = 24
@@ -67,6 +72,7 @@ end
 function MRTSLoadTeams()
 	mrtsTeams = {}
 	local n = MRTSGetNeutralTeam()
+	mrtsTeams[-1] = MRTSTeam("-", Color(255, 255, 255))
 	mrtsTeams[0] = MRTSTeam(n.name, Color(n.color.r, n.color.g, n.color.b))
 	for k, v in pairs(mrtsGameData.teams) do
 		if (not v.neutral) then
@@ -83,8 +89,10 @@ function MRTSInitializeDatapack()
 		troopsIDsByUniqueName[v.uniqueName] = k
 	end
 	buildingsByUniqueName = {}
+	buildingsIDsByUniqueName = {}
 	for k, v in pairs(mrtsGameData.buildings) do
 		buildingsByUniqueName[v.uniqueName] = v
+		buildingsIDsByUniqueName[v.uniqueName] = k
 	end
 	partsByUniqueName = {}
 	for k, v in pairs(mrtsGameData.parts) do
@@ -355,7 +363,7 @@ function GetMapController()
 	return mrtsMapController
 end
 
-function MRTSIsOutOfBounds(pos)
+function MRTSIsOutOfKillZone(pos)
 	local boundPlanes = ents.FindByClass("ent_mrts_bound_plane")
 	for k, v in pairs(boundPlanes) do
 		local dif = pos-v:GetPos()
@@ -366,12 +374,12 @@ function MRTSIsOutOfBounds(pos)
 
 	-- Point inside a polygon algorithm: https://youtu.be/3OmkehAJoyo?si=Y2_dsmH4wh_u8sMQ&t=190
 
-	local boundPoles = ents.FindByClass("ent_mrts_bound_pole")
+	local killPoles = ents.FindByClass("ent_mrts_kill_pole")
 	local nexts = {}
-	if (#boundPoles > 2) then
+	if (#killPoles > 2) then
 		local linesToTheRight = 0
-		for k, v in ipairs(boundPoles) do
-			local next = v.next
+		for k, v in ipairs(killPoles) do
+			local next = v:GetNextPole()
 			if (IsValid(next)) then
 				local start = v:GetPos()
 				local finish = next:GetPos()
@@ -391,6 +399,50 @@ function MRTSIsOutOfBounds(pos)
 			return true
 		end
 	end
+	return false
+end
+
+function MRTSIsOutOfBounds(pos)
+	local boundPlanes = ents.FindByClass("ent_mrts_bound_plane")
+	for k, v in pairs(boundPlanes) do
+		local dif = pos-v:GetPos()
+		if (dif:Dot(v:GetRight()) > 0) then
+			return true
+		end
+	end
+
+	-- Point inside a polygon algorithm: https://youtu.be/3OmkehAJoyo?si=Y2_dsmH4wh_u8sMQ&t=190
+
+	local boundPoles = ents.FindByClass("ent_mrts_bound_pole")
+	local killPoles = ents.FindByClass("ent_mrts_kill_pole")
+	if (#killPoles > 2) then
+		table.Add(boundPoles, killPoles)
+	end
+	local nexts = {}
+	if (#boundPoles > 2) then
+		local linesToTheRight = 0
+		for k, v in ipairs(boundPoles) do
+			local next = v:GetNextPole()
+			if (IsValid(next)) then
+				local start = v:GetPos()
+				local finish = next:GetPos()
+				local miny = math.min(start.y, finish.y)
+				local maxy = math.max(start.y, finish.y)
+				if (pos.y < maxy and pos.y > miny) then
+					local slope = (finish.x-start.x)/(finish.y-start.y)
+					local yDifference = pos.y-start.y
+					local intersectionX = slope*yDifference + start.x
+					if (intersectionX > pos.x) then
+						linesToTheRight = linesToTheRight+1
+					end
+				end
+			end
+		end
+		if (linesToTheRight%2 == 0) then
+			return true
+		end
+	end
+
 	return false
 end
 

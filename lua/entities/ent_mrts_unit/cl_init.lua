@@ -173,6 +173,7 @@ end
 
 function ENT:HandleAccessories()
 	-- Look forward
+	if (self == nil) then return false end
 	local selfTable = self:GetTable()
 	local spd = self:GetData().speed or 20
 	local spdSqr = spd*spd

@@ -61,9 +61,9 @@ function ENT:Think()
 					negativeCapturing = negativeCapturing + v
 				end
 			end
-			local totalCaptureSpeed = positiveCapturing - negativeCapturing
+			local totalCaptureSpeed = math.Clamp((positiveCapturing - negativeCapturing), -1, 1)
 			local tickInterval = 1/captureZoneThinkTime
-			self.capture = self.capture+totalCaptureSpeed*tickInterval/100
+			self.capture = self.capture+totalCaptureSpeed*tickInterval/200
 			self.capture = math.Clamp(self.capture, 0, 1)
 			if (not self.isCaptured) then
 				if (totalCaptureSpeed > 0 and self.capture >= 1) then

@@ -405,7 +405,7 @@ defaultMrtsGameData = {
 			mass= 0.1,
 			force=0.1,
 			size= 5,
-			maxHealth= 2,
+			maxHealth= 4,
 			lifetime= 5,
 			speed= 90,
 			icon="🐺",
@@ -1568,7 +1568,7 @@ defaultMrtsGameData = {
 			capacity= {water=250, energy=50, influence=5},
 			buildTime= 0.5,
 			population= 0,
-			housing=25,
+			housing=20,
 			maxHealth= 1000,
 			objective= true,
 			icon="icon16/building.png",
@@ -1712,7 +1712,7 @@ defaultMrtsGameData = {
 			uniqueName= "housing",
 			category="Economy",
 			order=7,
-			description= "Increase your population housing by 5, allowing you to build more troops. Housing spaces can only go up to 100.",
+			description= "Increase your population housing by 10, allowing you to build more troops. Housing spaces can only go up to 80.",
 			spawnSound= "doors/door_metal_large_close2.wav",
 			type= "building",
 			cost= {water=100},
@@ -1764,7 +1764,8 @@ defaultMrtsGameData = {
 			offset={x=0,y=0,z=10},
 			angle={x=90,y=0,z=0},
 			size={x=24,y=8,z=8},
-			firingOffset={x=-16,y=0,z=0},
+			turretLength=16,
+			firingOffset={x=-32,y=0,z=0},
 			sight= 250,
 			barOffset= 20,
 			attack= {
@@ -1914,7 +1915,7 @@ defaultMrtsGameData = {
 		},
 		{
 			name= "Water pump",
-			uniqueName= "waterpump",
+			uniqueName = "waterpump",
 			category="Economy",
 			order=13,
 			description= "Produces 1 water per second",
@@ -2395,6 +2396,7 @@ defaultMrtsGameData = {
 			description= "Assemble a contraption by pressing E. Contraptions are custom vehicles designed outside of combat that you can then legally create in battle using resources.",
 			spawnSound= "doors/door_metal_large_close2.wav",
 			type= "building",
+			unlisted= true,
 			cost= {water=500, energy=250},
 			buildTime= 1,
 			population=0,
@@ -2507,6 +2509,7 @@ defaultMrtsGameData = {
 			spawnSound= "items/ammopickup.wav",
 			deathSound= "physics/body/body_medium_impact_soft7.wav",
 			sight = 160,
+			turretLength = 30,
 			attack= {
 				type= "basic",
 				delay= 0.75,
@@ -2538,10 +2541,10 @@ defaultMrtsGameData = {
 			population=1,
 			mass= 1,
 			size= 4,
-			maxHealth= 10,
+			maxHealth= 30,
 			speed= 40,
 			icon="icon16/medal_silver_2.png",
-			model="models/props_junk/cardboard_box004a.mdl",
+			model="models/maxofs2d/hover_classic.mdl",
 			scale={x=1,y=1,z=1},
 			accessories={{
 				model="models/weapons/w_smg1.mdl",
@@ -2596,6 +2599,10 @@ end
 
 function GetBuildingByUniqueName(name)
 	return buildingsByUniqueName[name]
+end
+
+function GetBuildingIDByUniqueName(name)
+	return buildingsIDsByUniqueName[name]
 end
 
 function GetStatusByUniqueName(name)

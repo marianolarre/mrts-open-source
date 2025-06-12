@@ -75,7 +75,7 @@ function MRTS_AttackType_Basic(ent, attack, target, pos, trailOnly, attackID)
 		if (attack.targeting != nil) then
 			targeting = attack.targeting
 		end
-		local friendly = targeting.allied
+		local friendly = targeting.allies
 		MRTSAreaEffect(ent, pos, attack.radius, ent:GetTeam(), {
 			forcedVictim=target,
 			damage=ent:GetModifiedDamage(attack),

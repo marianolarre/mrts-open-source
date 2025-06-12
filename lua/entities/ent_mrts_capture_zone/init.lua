@@ -6,15 +6,32 @@ include('shared.lua')
 function ENT:Initialize()
 	self:SharedInit()
 
-	self:SetSize(150)
+	self:SetSize(175)
 	
-	self:SetModel("models/props_trainstation/trainstation_post001.mdl")
-	self:PhysicsInitBox(-Vector(self:GetSize()/2, self:GetSize()/2, 0), Vector(self:GetSize()/2, self:GetSize()/2, 100))
 	self:SetMoveType( MOVETYPE_NONE )
 	self:DrawShadow(false)
-	self:SetCollisionGroup(COLLISION_GROUP_VEHICLE)
 
+	local points = {}
+
+	local faces = 16
+	local radius = self:GetSize()/2
+	local height = 150
+	for i=1, faces do
+		table.insert(points, Vector( math.cos(i*math.pi*2/faces)*radius, math.sin(i*math.pi*2/faces)*radius, 0 ))
+		table.insert(points, Vector( math.cos(i*math.pi*2/faces)*radius, math.sin(i*math.pi*2/faces)*radius, height ))
+	end	
+
+	self:PhysicsInitConvex( points )
+
+	self:SetSolid( SOLID_VPHYSICS )
+	self:EnableCustomCollisions( true )
+
+	self:SetCollisionGroup(COLLISION_GROUP_VEHICLE)
 	self:SetTrigger( true )
+
+	if (self:CreatedByMap()) then
+		self.mrtsPartOfTheMap = true
+	end
 end
 
 function ENT:StartTouch(unit)

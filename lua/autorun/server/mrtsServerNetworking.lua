@@ -24,6 +24,7 @@ util.AddNetworkString( "MRTSOrderStop" )
 util.AddNetworkString( "MRTSSpawnCaptureZone" )
 util.AddNetworkString( "MRTSSpawnBoundPlane" )
 util.AddNetworkString( "MRTSSpawnBoundPole" )
+util.AddNetworkString( "MRTSSpawnKillPole" )
 util.AddNetworkString( "MRTSSpawnSurvivalHQ" )
 util.AddNetworkString( "MRTSSpawnConfigurator" )
 util.AddNetworkString( "MRTSCancelEntity" )
@@ -168,6 +169,35 @@ net.Receive( "MRTSMatchStart", function()
 	end
 	net.Start("MRTSMatchStart")
 	net.Broadcast()
+end)
+
+net.Receive( "MRTSClearEntities", function()
+	if (mrtsSavedState == nil) then return false end
+	for k, v in pairs(ents.FindByClass("ent_mrts_building")) do
+		v:Remove()
+	end
+	if (mrtsSavedState.buildings != nil) then
+		for k, v in pairs(mrtsSavedState.buildings) do
+			MRTSSpawnBuilding(v.team, GetBuildingIDByUniqueName(v.name), v.pos, v.ang, nil, true, v.capturable, v.claimable)
+		end
+	end
+	for k, v in pairs(ents.FindByClass("ent_mrts_troop")) do
+		v:Remove()
+	end
+	if (mrtsSavedState.troops != nil) then
+		for k, v in pairs(mrtsSavedState.troops) do
+			if (IsValid(v.entity)) then
+				v.entity:Remove()
+			end
+			MRTSSpawnTroop(v.team, GetTroopIDByUniqueName(v.name), v.pos, nil, true, false, v.capturable, v.claimable)
+		end
+	end
+	for k, v in pairs(ents.FindByClass("ent_mrts_capture_zone")) do
+		v.capture = 0
+		v.capturingTeam = 0
+		v:ChangeTeam(0)
+		MRTSUpdateCaptureZone(v)
+	end
 end)
 
 net.Receive( "MRTSTogglePause", function()
@@ -322,6 +352,20 @@ net.Receive( "MRTSSpawnBoundPole", function(len, pl)
 	end
 end )
 
+net.Receive( "MRTSSpawnKillPole", function(len, pl)
+	local pos = net.ReadVector()
+	local newUnit = ents.Create("ent_mrts_kill_pole")
+	newUnit:SetPos(pos+Vector(0,1.5,6))
+	newUnit:Spawn()
+	newUnit:ConnectToLastPole()
+	if (pl != nil) then
+		undo.Create("Unit")
+			undo.AddEntity(newUnit)
+			undo.SetPlayer(pl)
+		undo.Finish()
+	end
+end )
+
 net.Receive( "MRTSSpawnSurvivalHQ", function(len, pl)
 	local pos = net.ReadVector()
 	local newUnit = ents.Create("ent_mrts_survival_hq")
@@ -386,8 +430,20 @@ net.Receive( "MRTSQueueContraption", function (len, pl)
 	print(dupeTable.Mins)
 	print(dupeTable.Maxs)*/
 	duplicator.SetLocalPos(assembler:GetPos()+Vector(0,0,20))
-	duplicator.Paste( pl, dupeTable.Entities, dupeTable.Constraints )
+	local entities, constraints = duplicator.Paste( pl, dupeTable.Entities, dupeTable.Constraints )
 	duplicator.SetLocalPos(Vector(0,0,0))
+
+	local newContraption = table.Copy(MRTSContraptionClass)
+	for k, v in pairs(entities) do
+		local class = v:GetClass()
+		if (class == "ent_mrts_part") then
+			table.insert(newContraption.parts, v)
+			
+		else
+			table.insert(newContraption.props, v)
+			
+		end
+	end
 end)
 
 net.Receive( "MRTSRequestActivation", function (len, pl)
@@ -400,6 +456,11 @@ net.Receive( "MRTSClaimUnit", function (len, pl)
 	local team = net.ReadInt(8)
 	
 	-- Replace
+	if (team == -1) then
+		entity:ChangeTeam(-1)
+		return
+	end
+
 	local faction = mrtsGameData.factions[mrtsTeams[team].faction]
 	if (faction) then
 		if (faction.replacements) then
@@ -441,7 +502,6 @@ net.Receive( "MRTSClaimUnit", function (len, pl)
 
 	-- Change team
 	entity:ChangeTeam(team)
-	entity:SetClaimable(false)
 end)
 
 net.Receive( "MRTSCancelEntity", function (len, pl)

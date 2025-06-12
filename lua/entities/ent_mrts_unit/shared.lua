@@ -94,7 +94,7 @@ function ENT:GetCenter()
 	return self:GetPos() + totalOffset
 end
 
-function ENT:GetFiringOrigin(useWeapon)
+function ENT:GetFiringOrigin(useWeapon, targetPos)
 	local data = self:GetData()
 
 	if (CLIENT and useWeapon) then
@@ -111,13 +111,22 @@ function ENT:GetFiringOrigin(useWeapon)
 		end
 	end
 
+	local turretOffset = Vector(0,0,0)
+	if (targetPos != nil and self:GetData().turretLength != nil) then
+		local direction = targetPos-self:GetCenter()
+		direction.z = 0
+		direction:Normalize()
+		turretOffset = direction*self:GetData().turretLength
+	end
+
 	if (data.firingOffset) then
 		local offset = Vector(data.firingOffset.x, data.firingOffset.y, data.firingOffset.z)
 		offset:Rotate(self:GetAngles())
-		return self:GetPos()+offset
+
+		return self:GetPos()+offset+turretOffset
 	end
-	
-	return self:GetPos()+Vector(0,0,data.attack.offset or 0)
+
+	return self:GetPos()+Vector(0,0,data.attack.offset or 0)+turretOffset
 end
 
 function ENT:IsFOWVisibleToTeam(toTeam)

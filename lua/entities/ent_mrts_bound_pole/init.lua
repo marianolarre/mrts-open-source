@@ -4,47 +4,85 @@ AddCSLuaFile( "shared.lua" )  -- and shared scripts are sent.
 include('shared.lua')
 
 usedMRTSPole = nil
-mrtsPoles = {}
+boundPoles = {}
 
 local function Connect(a, b)
-    if (a.next == b) then
+    if (a:GetNextPole() == b) then
         if (IsValid(a.connection)) then
             a.connection:Remove()
             a.connection = nil
-            a.next = nil
+            a:SetNextPole(nil)
         end
         return false
-    elseif (b.next == a) then
+    elseif (b:GetNextPole() == a) then
         if (IsValid(b.connection)) then
             b.connection:Remove()
             b.connection = nil
-            b.next = nil
+            b:SetNextPole(nil)
         end
         return false
     else
         if (IsValid(a.connection)) then
             a.connection:Remove()
         end
-        a.next = b
-        local cons= constraint.Elastic( a, b, 0, 0, Vector(0,5,1.5), Vector(0,5,1.5), 0, 0, 0, "cable/redlaser", 5, true, color_white )
+        a:SetNextPole(b)
+        local cons= constraint.Elastic( a, b, 0, 0, Vector(0,5,1.5), Vector(0,5,1.5), 0, 0, 0, a.ropeTexture, a.ropeWidth, true, color_white )
         a.connection = cons
         return true
     end
 end
 
+function ENT:KeyValue(key, value)
+    key = string.lower(key)
+
+    if key == "next" then
+        self.hammerNext = value
+    end
+end
+
+function ENT:SetRopeTexture()
+    self.ropeTexture = "cable/rope"
+    self.ropeWidth = 2
+    self.color = Color(255, 150, 150)
+end
+
 function ENT:Initialize()
+    self:SetRopeTexture()
+
 	self:SetModel("models/hunter/plates/plate025.mdl")
     self:SetMaterial("phoenix_storms/stripes")
-    self:SetColor(Color(185, 88, 88))
+    self:SetColor(self.color)
     self:SetAngles(Angle(0,0,90))
 	self:PhysicsInit(SOLID_VPHYSICS)
 	self:SetSolid( SOLID_VPHYSICS )
     self:GetPhysicsObject():EnableMotion(false)
 	self:SetCollisionGroup(COLLISION_GROUP_VEHICLE)
     self:SetUseType( SIMPLE_USE )
+
+    if (self.hammerNext != nil) then
+        local this = self
+        timer.Simple(0.05, function()
+            for k, v in ipairs(ents.FindByName(self.hammerNext)) do
+                Connect(self, v)
+                break
+            end
+        end)
+    end
+
+    if (self:CreatedByMap()) then
+		self.mrtsPartOfTheMap = true
+	end
+end
+
+function ENT:DelayedHammerConnection()
+    
 end
 
 function ENT:Use( activator, caller, useType, value)
+    if (self.mrtsPartOfTheMap) then
+        return false
+    end
+
     if (usedMRTSPole != nil and usedMRTSPole != self) then
         local action = Connect(usedMRTSPole, self)
         if (action) then
@@ -60,15 +98,15 @@ function ENT:Use( activator, caller, useType, value)
 end
 
 function ENT:ConnectToLastPole()
-    local count = #mrtsPoles
+    local count = #mrtsBoundPoles
     if (count > 0) then
-        Connect(mrtsPoles[count], self) 
+        Connect(mrtsBoundPoles[count], self) 
     end
     if (count > 1) then
-        Connect(self, mrtsPoles[1])
+        Connect(self, mrtsBoundPoles[1])
     end
 
-    table.insert(mrtsPoles, self)
+    table.insert(mrtsBoundPoles, self)
 end
 
 function ENT:SpawnFunction( ply, tr, ClassName )
@@ -93,7 +131,7 @@ function ENT:Think()
         self.rebuild = false
         for k, v in pairs(constraint.FindConstraints( self, "Elastic")) do
             if (v.Ent1 == self) then
-                self.next = v.Ent2
+                self:SetNextPole(v.Ent2)
                 self:NextThink( CurTime() + 1000000 )
                 return true
             end
@@ -106,5 +144,5 @@ function ENT:PostEntityPaste(ply, ent, createdEntities)
 end
 
 function ENT:OnRemove()
-    table.RemoveByValue(mrtsPoles, self)
+    table.RemoveByValue(boundPoles, self)
 end

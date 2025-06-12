@@ -261,7 +261,7 @@ function ENT:TryAttack(attack, attackID, forcedTarget)
 			local tr
 			if (not ignoresWalls and target != nil and IsValid(target)) then
 				tr = util.TraceLine( {
-					start = self:GetFiringOrigin(),
+					start = self:GetFiringOrigin(false, target:GetCenter()),
 					endpos = target:GetCenter(),
 					filter = function( foundEnt )
 						if (foundEnt != self and foundEnt != target) then
@@ -446,7 +446,7 @@ function ENT:SelectTarget(attack)
 											if (not ignoresWalls) then
 												local targetPos = self:GetTargetPosition(v)
 												local tr = util.TraceLine( {
-													start = self:GetFiringOrigin(),
+													start = self:GetFiringOrigin(false, targetPos),
 													endpos = targetPos,
 													filter = function( foundEnt )
 														if (foundEnt != self and foundEnt != v) then
@@ -497,7 +497,7 @@ end
 function ENT:ComputeReadyChanges(sign)
 	if (self:GetUnderConstruction()) then return end
 	local data = self:GetData()
-	if (data.housing ~= 0) then
+	if (data.housing != 0) then
 		MRTSAffectMaxHousing(self:GetTeam(), sign*(data.housing or 0))
 	end
 	if (istable(data.income)) then
@@ -759,13 +759,19 @@ function ENT:ChangeTeam(newTeam)
 	if (not self:GetUnderConstruction()) then
 		self:ComputeReadyChanges(-1)
 	end
-	self.teamID = newTeam
-	self.teamData = mrtsTeams[newTeam]
-	self:SetTeam(newTeam)
-	self:SetTeamColor()
-	self:ComputeImmediateChanges(1)
-	if (not self:GetUnderConstruction()) then
-		self:ComputeReadyChanges(1)
+	if (newTeam != -1) then
+		self.teamID = newTeam
+		self.teamData = mrtsTeams[newTeam]
+		self:SetTeam(newTeam)
+		self:SetTeamColor()
+		self:ComputeImmediateChanges(1)
+		if (not self:GetUnderConstruction()) then
+			self:ComputeReadyChanges(1)
+		end
+	else
+		self.teamID = -1
+		self:SetTeam(-1)
+		self:SetTeamColor()
 	end
 end
 
@@ -786,10 +792,14 @@ end
 
 function ENT:SetTeamColor()
 	local data = self:GetData()
+	local color = {r=255, g=255, b=255, a=255}
+	if (mrtsTeams[self:GetTeam()] != nil) then
+		color = mrtsTeams[self:GetTeam()].color
+	end
 	if (data.color == nil) then
-		self:SetColor(mrtsTeams[self:GetTeam()].color)
+		self:SetColor(color)
 	else
-		local from = mrtsTeams[self:GetTeam()].color
+		local from = color
 		local to = data.color
 		local lerp = LerpVector(data.color.a, Vector(from.r, from.g, from.b), Vector(to.r,to.g,to.b))
 		local lerpedColor = Color(lerp.x, lerp.y, lerp.z)

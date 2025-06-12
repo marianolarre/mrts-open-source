@@ -8,4 +8,8 @@ function ENT:Initialize()
 	self:PhysicsInit(SOLID_VPHYSICS)
 	self:SetSolid( SOLID_VPHYSICS )
 	self:SetCollisionGroup(COLLISION_GROUP_VEHICLE)
+
+	if (self:CreatedByMap()) then
+		self.mrtsPartOfTheMap = true
+	end
 end

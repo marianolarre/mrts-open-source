@@ -64,6 +64,7 @@ local STAGE_PLACING_BOUND_PLANE = 11
 local STAGE_PLACING_CAPTURE_ZONE = 12
 local STAGE_PLACING_SURVIVAL_HQ = 13
 local STAGE_PLACING_BOUND_POLE = 14
+local STAGE_PLACING_KILL_POLE = 15
 local STAGE_SAVING_CONTRAPTION = 20
 local STAGE_LOADING_CONTRAPTION = 21
 local STAGE_DEBUG_ANALIZE_CONTRAPTION = 100
@@ -185,6 +186,9 @@ function SWEP:SetStage(stage)
 		self:DeletePreview()
 		adminAction = true
 	elseif (stage == STAGE_PLACING_BOUND_POLE) then
+		self:DeletePreview()
+		adminAction = true
+	elseif (stage == STAGE_PLACING_KILL_POLE) then
 		self:DeletePreview()
 		adminAction = true
 	elseif (stage == STAGE_PLACING_SURVIVAL_HQ) then
@@ -489,6 +493,23 @@ function SWEP:Think()
 			}
 			if (self:PrimaryPressed()) then
 				net.Start("MRTSSpawnBoundPole")
+					net.WriteVector(pos)
+				net.SendToServer()
+				self:SetClickCooldown()
+			end
+
+			if (self:SecondaryPressed()) then
+				self:SetStage(STAGE_MAIN)
+			end
+		elseif (self.stage == STAGE_PLACING_KILL_POLE) then // Admin Placing Kill Plane
+			local pos = GetNonUnitTrace().HitPos
+			mrtsPreviewBox = {
+				pos=pos,
+				size=Vector(2,2,15),
+				angle=Angle(0,0,0)
+			}
+			if (self:PrimaryPressed()) then
+				net.Start("MRTSSpawnKillPole")
 					net.WriteVector(pos)
 				net.SendToServer()
 				self:SetClickCooldown()
@@ -811,7 +832,7 @@ function SWEP:OrderSelectedUnits(position)
 end
 
 function SWEP:OrderStopSelectedUnits()
-	if (mrtsSelectedUnits ~= nil) then
+	if (mrtsSelectedUnits != nil) then
 		local troops = {}
 		for k, v in pairs(mrtsSelectedUnits) do
 			if (IsValid(v)) then
@@ -935,7 +956,7 @@ function SWEP:DrawHUD()
 	local tr = GetUnitTrace()
 
 	local eyeEntity = tr.Entity
-	if (IsValid(eyeEntity)) then
+	if (IsValid(eyeEntity) and self.stage == STAGE_MAIN) then
 		local entTable = eyeEntity:GetTable()
 		if (entTable.isMRTSUnit) then
 			if (entTable.IsFOWVisibleToTeam(eyeEntity, mrtsTeam)) then
@@ -1144,6 +1165,7 @@ function SWEP:DrawHUD()
 	surface.SetFont("Trebuchet24")
 	local first = true
 	for k, v in pairs(mrtsTeams[mrtsTeam].buildQueue) do
+
 		if (first) then
 			local number = (math.ceil((mrtsTeams[mrtsTeam].nextBuild-CurTime())*10)/10)
 			if (number < -3) then break end
@@ -1155,6 +1177,7 @@ function SWEP:DrawHUD()
 			end
 			local str = number.."s"
 			local textWidth = string.len(tostring(str))*10
+
 			draw.RoundedBox(16, queuePosX-16, queuePosY-16, 52+textWidth, 32, MRTS_DARK_COLOR)
 			draw.RoundedBox(28, queuePosX-28, queuePosY-28, 56, 56, MRTS_DARK_COLOR)
 			local percent = 1-(mrtsTeams[mrtsTeam].nextBuild-CurTime())/v.time
@@ -1226,6 +1249,10 @@ function SWEP:DrawHUD()
 		DrawKeybind(32, offset+32, "Open/Close menu", "gui/r.png")
 		DrawKeybind(32, offset+52, "Place bound pole", "gui/lmb.png")
 		DrawKeybind(32, offset+72, "Stop placing bound poles", "gui/rmb.png")
+	elseif (self.stage == STAGE_PLACING_KILL_POLE) then
+		DrawKeybind(32, offset+32, "Open/Close menu", "gui/r.png")
+		DrawKeybind(32, offset+52, "Place kill pole", "gui/lmb.png")
+		DrawKeybind(32, offset+72, "Stop placing kill poles", "gui/rmb.png")
 	elseif (self.stage == STAGE_PLACING_SURVIVAL_HQ) then
 		DrawKeybind(32, offset+32, "Open/Close menu", "gui/r.png")
 		DrawKeybind(32, offset+52, "Place survival hq", "gui/lmb.png")
@@ -1790,6 +1817,11 @@ function SWEP:OpenGameMenu()
 	notificationOption:SetText("Show sighting, combat and death notifications")
 	notificationOption:SetConVar("mrts_display_notifications")
 
+	local notificationOption = vgui.Create("DCheckBoxLabel", optionsPanel)
+	notificationOption:Dock(TOP)
+	notificationOption:SetText("Lock entities created by the map")
+	notificationOption:SetConVar("mrts_lock_map_entities")
+
 	---------------------------------------------------------------------------------------------
 	--										Admin
 	---------------------------------------------------------------------------------------------
@@ -1864,6 +1896,17 @@ function SWEP:OpenGameMenu()
 			self:CloseGameMenu()
 		end
 
+		local DermaButton = vgui.Create( "DButton", matchPanel )
+		DermaButton:SetText( "Restore units to how it was on Match Start" )		
+		DermaButton:DockMargin(5,5,5,5)							
+		DermaButton:Dock(TOP)		
+		DermaButton:SetSize(0,30)	
+		DermaButton.DoClick = function()				
+			net.Start("MRTSClearEntities")
+			net.SendToServer()
+			self:CloseGameMenu()
+		end
+
 		local allianceText = vgui.Create( "DLabel", matchPanel )
 		allianceText:DockMargin(20,10,0,0)
 		allianceText:Dock(TOP)
@@ -1880,43 +1923,47 @@ function SWEP:OpenGameMenu()
 
 		mrtsAllianceButtons = {}
 		for k1, v1 in pairs(mrtsTeams) do
-			local allianceLabel = vgui.Create("DPanel")
-			allianceLabel:SetSize(size, size)
-			allianceLabel.Paint = function(self, w, h)
-				draw.RoundedBox(0, 0, 0, w, h, color_black)
-				draw.RoundedBox(0, outline, outline, w-outline*2, h-outline*2, v1.color)
-			end
-			allianceGrid:AddItem(allianceLabel)
-			mrtsAllianceButtons[k1] = {}
-			for k2, v2 in pairs(mrtsTeams) do
-				local allianceButton = vgui.Create("DCheckBox")
-				mrtsAllianceButtons[k1][k2] = allianceButton
-				allianceButton:SetSize(size, size)
-				allianceGrid:AddItem(allianceButton)
-				allianceButton:SetValue(v1.alliances[k2])
-				allianceButton.Paint = function(self, w, h)
-					if k2 < k1 then
-						draw.RoundedBox(0, 1, 1, w-2, h-2, color_black)
-						if (self:GetChecked()) then
-							draw.RoundedBox(0, outline, outline, w/2, h-outline*2, v1.color)
-							draw.RoundedBox(0,  w/2, outline, w/2-outline, h-outline*2, v2.color)
-						else
-						end
-					end
-					if k2 > k1 then
-						draw.RoundedBox(0, 1, 1, w-2, h-2, MRTS_TROOP_BUTTON_COLOR)
-						if (self:GetChecked()) then
-							draw.RoundedBox(0, outline, outline, w-outline*2, h-outline*2, MRTS_TROOP_BUTTON_HOVER_COLOR)
-						end
-					end
+			if (k1 > -1) then
+				local allianceLabel = vgui.Create("DPanel")
+				allianceLabel:SetSize(size, size)
+				allianceLabel.Paint = function(self, w, h)
+					draw.RoundedBox(0, 0, 0, w, h, color_black)
+					draw.RoundedBox(0, outline, outline, w-outline*2, h-outline*2, v1.color)
 				end
-				if (k1 != k2) then
-					allianceButton.OnChange = function(self, checked)
-						net.Start("MRTSRequestAlliance")
-							net.WriteInt(k1, 8)
-							net.WriteInt(k2, 8)
-							net.WriteBool(checked)
-						net.SendToServer()
+				allianceGrid:AddItem(allianceLabel)
+				mrtsAllianceButtons[k1] = {}
+				for k2, v2 in pairs(mrtsTeams) do
+					if (k2 > -1) then
+						local allianceButton = vgui.Create("DCheckBox")
+						mrtsAllianceButtons[k1][k2] = allianceButton
+						allianceButton:SetSize(size, size)
+						allianceGrid:AddItem(allianceButton)
+						allianceButton:SetValue(v1.alliances[k2])
+						allianceButton.Paint = function(self, w, h)
+							if k2 < k1 then
+								draw.RoundedBox(0, 1, 1, w-2, h-2, color_black)
+								if (self:GetChecked()) then
+									draw.RoundedBox(0, outline, outline, w/2, h-outline*2, v1.color)
+									draw.RoundedBox(0,  w/2, outline, w/2-outline, h-outline*2, v2.color)
+								else
+								end
+							end
+							if k2 > k1 then
+								draw.RoundedBox(0, 1, 1, w-2, h-2, MRTS_TROOP_BUTTON_COLOR)
+								if (self:GetChecked()) then
+									draw.RoundedBox(0, outline, outline, w-outline*2, h-outline*2, MRTS_TROOP_BUTTON_HOVER_COLOR)
+								end
+							end
+						end
+						if (k1 != k2) then
+							allianceButton.OnChange = function(self, checked)
+								net.Start("MRTSRequestAlliance")
+									net.WriteInt(k1, 8)
+									net.WriteInt(k2, 8)
+									net.WriteBool(checked)
+								net.SendToServer()
+							end
+						end
 					end
 				end
 			end
@@ -1928,13 +1975,15 @@ function SWEP:OpenGameMenu()
 		end
 		allianceGrid:AddItem(tableCorner)
 		for k, v in pairs(mrtsTeams) do
-			local allianceLabel = vgui.Create("DPanel")
-			allianceLabel:SetSize(size, size)
-			allianceLabel.Paint = function(self, w, h)
-				draw.RoundedBox(0, 0, 0, w, h, color_black)
-				draw.RoundedBox(0, outline, outline, w-outline*2, h-outline*2, v.color)
+			if (k > -1) then
+				local allianceLabel = vgui.Create("DPanel")
+				allianceLabel:SetSize(size, size)
+				allianceLabel.Paint = function(self, w, h)
+					draw.RoundedBox(0, 0, 0, w, h, color_black)
+					draw.RoundedBox(0, outline, outline, w-outline*2, h-outline*2, v.color)
+				end
+				allianceGrid:AddItem(allianceLabel)
 			end
-			allianceGrid:AddItem(allianceLabel)
 		end
 
 		------------------------------------------------------------------- Elements
@@ -1956,12 +2005,13 @@ function SWEP:OpenGameMenu()
 					self:SetStage(STAGE_PLACING_BUILDING)
 					adminAction = true
 					placingClaimable = true
+					placingCapturable = false
 					mrtsPlacingUnitID = k
 
-					if (GetConVar("mrts_playing"):GetBool()) then
+					/*if (GetConVar("mrts_playing"):GetBool()) then
 						net.Start("MRTSTogglePause")
 						net.SendToServer()
-					end
+					end*/
 
 					self:CloseGameMenu()
 					return
@@ -1986,6 +2036,16 @@ function SWEP:OpenGameMenu()
 		DermaButton:DockMargin(10,10,10,10)	
 		DermaButton.DoClick = function()	
 			self:SetStage(STAGE_PLACING_BOUND_PLANE)
+			self:CloseGameMenu()
+		end
+
+		local DermaButton = vgui.Create( "DButton", elementsPanel ) 
+		DermaButton:SetText( "Place Kill Pole" )		
+		DermaButton:Dock(TOP)				
+		DermaButton:SetSize( 150, 30 )	
+		DermaButton:DockMargin(10,10,10,10)	
+		DermaButton.DoClick = function()	
+			self:SetStage(STAGE_PLACING_KILL_POLE)
 			self:CloseGameMenu()
 		end
 

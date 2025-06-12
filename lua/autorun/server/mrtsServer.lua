@@ -1,7 +1,8 @@
 CreateConVar( "mrts_sandbox_mode", "0", FCVAR_REPLICATED )
 CreateConVar( "mrts_playing", "1", FCVAR_REPLICATED )
+CreateConVar( "mrts_lock_map_entities", "1", FCVAR_REPLICATED )
 CreateConVar( "mrts_fow", "0", FCVAR_REPLICATED )
-CreateConVar( "mrts_max_population", "75", FCVAR_REPLICATED )
+CreateConVar( "mrts_max_population", "80", FCVAR_REPLICATED )
 CreateConVar( "mrts_allow_grav_gun_pickup", "0")
 
 mrtsUnits = ents.FindByClass("ent_mrts_troop")
@@ -29,6 +30,8 @@ mrtsMapController = nil
 
 mrtsColorRed = Color(255,0,0)
 mrtsColorLime = Color(0,255,0)
+
+mrtsSavedState = nil
 
 cvars.AddChangeCallback("mrts_fow", function(convar_name, value_old, value_new)
 	mrtsFOW = value_new
@@ -197,6 +200,32 @@ function MRTSUpdateSquadClosest(squad)
 	squad.closestEnemySquad = closestDistance
 end
 
+function MRTSSaveState()
+	mrtsSavedState = {buildings={}, troops={}}
+	for k, v in pairs(ents.FindByClass("ent_mrts_building")) do
+		table.insert(mrtsSavedState.buildings, {
+			name=v:GetData().uniqueName,
+			entity=v,
+			pos=v:GetPos(),
+			ang=v:GetAngles(),
+			team=v:GetTeam(),
+			claimable=v:GetClaimable(),
+			capturable=v:GetCapturable(),
+		})
+	end
+	for k, v in pairs(ents.FindByClass("ent_mrts_troop")) do
+		table.insert(mrtsSavedState.troops, {
+			name=v:GetData().uniqueName,
+			entity=v,
+			pos=v:GetPos(),
+			ang=v:GetAngles(),
+			team=v:GetTeam(),
+			claimable=v:GetClaimable(),
+			capturable=v:GetCapturable(),
+		})
+	end
+end
+
 function MRTSStartMatch()
 /*
 	-- Test event
@@ -218,6 +247,11 @@ function MRTSStartMatch()
 		end
 	end*/
 
+	MRTSSaveState()
+	for k, v in pairs(ents.FindByClass("ent_capture_zone")) do
+		v:ChangeTeam(0)
+	end
+
 	GetConVar("mrts_playing"):SetBool(false)
 	for i=0, 3 do
 		timer.Simple(i, function() 
@@ -229,6 +263,15 @@ function MRTSStartMatch()
 				GetConVar("mrts_playing"):SetBool(true)
 				MRTSReset()
 				MRTSRecalculateTeams()
+
+				for k, v in pairs(ents.FindByClass("ent_mrts_building")) do
+					if (v:GetClaimable()) then
+						v:SetClaimable(false)
+					end
+					if (v:GetTeam() < 0) then
+						v:Remove()
+					end
+				end
 
 				for k, v in pairs(ents.FindByClass("ent_mrts_survival_hq")) do
 					v:Begin()
@@ -376,6 +419,7 @@ function MRTSSpawnTroop(teamID, unitID, pos, pl, ready, preallocated, capturable
 	end
 	if (claimable) then
 		newUnit:SetClaimable(true)
+		newUnit:SetTeam(-1)
 	end
 
 	newUnit:Spawn()
@@ -417,6 +461,7 @@ function MRTSSpawnBuilding(teamID, unitID, pos, ang, pl, ready, capturable, clai
 	end
 	if (claimable) then
 		newUnit:SetClaimable(true)
+		newUnit:SetTeam(-1)
 	end
 
 	newUnit:Spawn()
@@ -449,7 +494,7 @@ function MRTSSpawnPart(teamID, unitID, pos, pl, ready, preallocated, tr)
 
 	local instant = GetConVar("mrts_sandbox_mode"):GetBool() or ready
 
-	if (not preallocated and not ready) then
+	if (--[[not preallocated and ]]not ready) then
 		newUnit:SetUnderConstruction(true)
 	end
 
@@ -463,7 +508,7 @@ function MRTSSpawnPart(teamID, unitID, pos, pl, ready, preallocated, tr)
 		MRTSAddUnitToBuildQueue(teamID, newUnit)
 	end
 
-	if (IsValid(tr) and IsValid(tr.Entity)) then
+	if (tr != nil and IsValid(tr.Entity)) then
 		local constraintType = mrtsGameData.parts[unitID].constraint or "weld"
 		if (constraintType == "weld") then
 			constraint.Weld(newUnit, tr.Entity, 0, 0, 0, true, true)
@@ -573,7 +618,7 @@ hook.Add("Think", "mrts_think", function()
 			end
 		end
 		for k, v in ipairs(mrtsUnits) do
-			if (v:GetTeam() > 0 and MRTSIsOutOfBounds(v:GetPos())) then
+			if (v:GetTeam() > 0 and MRTSIsOutOfKillZone(v:GetPos())) then
 				if (not v:GetClaimable() and not v:GetCapturable()) then
 					v:Die()
 				end
@@ -686,16 +731,30 @@ end)
 
 hook.Add( "PhysgunPickup", "mrtsPreventPickup", function( ply, ent )
 	local tbl = ent:GetTable()
-	if (tbl.isMRTSUnit) then
+	if (tbl.isMRTSUnit or (tbl.mrtsPartOfTheMap and GetConVar("mrts_lock_map_entities"):GetBool())) then
 		return false
 	end
-	--if ( ply:IsAdmin() and ent:IsPlayer() ) then
-	--	return true
-	--end
 end )
 
+hook.Add("CanTool", "NoToolOnMyEntity", function(ply, trace, tool)
+    local ent = trace.Entity
+    if IsValid(ent) then
+		local tbl = ent:GetTable()
+		if (tbl.mrtsPartOfTheMap and GetConVar("mrts_lock_map_entities"):GetBool()) then
+        	return false
+		end
+    end
+end)
+
+hook.Add("CanProperty", "NoPropertyOnMyEntity", function(ply, property, ent)
+	local tbl = ent:GetTable()
+	if (tbl.mrtsPartOfTheMap and GetConVar("mrts_lock_map_entities"):GetBool()) then
+		return false
+	end
+end)
+
 function MRTSAffectUsedHousing(specificTeam, amount, preventUpdate)
-	if (amount ~= 0) then
+	if (amount != 0) then
 		mrtsTeams[specificTeam].usedHousing = mrtsTeams[specificTeam].usedHousing+(amount or 0);
 		if (!preventUpdate) then
 			MRTSUpdateUsedHousing(specificTeam);
@@ -711,7 +770,7 @@ function MRTSUpdateUsedHousing(specificTeam)
 end
 
 function MRTSAffectResource(specificTeam, amount, resource, preventUpdate)
-	if (amount ~= 0) then
+	if (amount != 0) then
 		mrtsTeams[specificTeam].resources[resource].current = mrtsTeams[specificTeam].resources[resource].current+(amount or 0);
 		mrtsTeams[specificTeam].resources[resource].current = math.Clamp(
 			mrtsTeams[specificTeam].resources[resource].current,
@@ -752,7 +811,8 @@ function MRTSRemoveIncome(specificTeam, income)
 end
 
 function MRTSAffectIncome(specificTeam, amount, resource, preventUpdate)
-	if (amount ~= 0) then
+	if (specificTeam < 0) then return false end
+	if (amount != 0) then
 		if (mrtsTeams[specificTeam].resources[resource].income == nil) then
 			mrtsTeams[specificTeam].resources[resource].income = 0
 		end
@@ -764,7 +824,7 @@ function MRTSAffectIncome(specificTeam, amount, resource, preventUpdate)
 end
 
 function MRTSAffectCapacity(specificTeam, amount, resource, preventUpdate)
-	if (amount ~= 0) then
+	if (amount != 0) then
 		if (mrtsTeams[specificTeam].resources[resource].capacity == nil) then
 			mrtsTeams[specificTeam].resources[resource].capacity = 0
 		end
@@ -813,7 +873,7 @@ function MRTSUpdateBuildQueue(specificTeam)
 end
 
 function MRTSAffectMaxHousing(specificTeam, amount, preventUpdate)
-	if (amount ~= 0) then
+	if (amount != 0) then
 		mrtsTeams[specificTeam].maxHousing = mrtsTeams[specificTeam].maxHousing+(amount or 0);
 		if (!preventUpdate) then
 			MRTSUpdateMaxHousing(specificTeam);

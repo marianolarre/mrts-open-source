@@ -59,7 +59,7 @@ function GetDatapackName()
 end
 /*
 function LoadMRTSMaterial(key)
-	if (mrtsMaterials[key] ~= nil) then
+	if (mrtsMaterials[key] != nil) then
 		return mrtsMaterials[key]
 	else
 		local datapack = GetDatapackName()
@@ -250,17 +250,15 @@ hook.Add("PostDrawOpaqueRenderables", "mrts_debug_boxes", function()
 	if (LocalPlayer():GetActiveWeapon():GetClass() != "weapon_mrts") then return end
 	render.DrawWireframeBox( mrtsPreviewBox.pos,mrtsPreviewBox.angle,-mrtsPreviewBox.size,mrtsPreviewBox.size,color_white,true)
 end)
-/*
-hook.Add("Tick", "mrtsClientTick", function()	
-	MRTSCaptureZoneThink()
-end)
-*/
+
 hook.Add( "Think", "mrtsClientThink", function()	
 	local tr = LocalPlayer():GetEyeTrace()
 	local ent = tr.Entity
-	if (ent:GetNWString("mrtsTooltip", "nope") != "nope") then
-        AddWorldTip( nil,ent:GetNWString("mrtsTooltip", "tooltip error"), nil, Vector(0,0,0), ent )
-    end
+	if (IsValid(tr.Entity)) then
+		if (ent:GetNWString("mrtsTooltip", "nope") != "nope") then
+			AddWorldTip( nil,ent:GetNWString("mrtsTooltip", "tooltip error"), nil, Vector(0,0,0), ent )
+		end
+	end
 end)
 
 function MRTSAddStatus(unit, statusID)

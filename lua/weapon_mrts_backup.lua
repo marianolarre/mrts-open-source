@@ -803,7 +803,7 @@ function SWEP:OrderSelectedUnits(position)
 end
 
 function SWEP:OrderStopSelectedUnits()
-	if (mrtsSelectedUnits ~= nil) then
+	if (mrtsSelectedUnits != nil) then
 		local troops = {}
 		for k, v in pairs(mrtsSelectedUnits) do
 			if (IsValid(v)) then
